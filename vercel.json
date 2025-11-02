@@ -1,13 +1,13 @@
 {
   "builds": [
     {
-      "src": "client/package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
+      "src": "index.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
-    { "src": "/sw.js", "dest": "/sw.js" },
+    { "src": "/sw.js", "dest": "/client/public/sw.js" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  ],
+  "outputDirectory": "client/public"
 }
