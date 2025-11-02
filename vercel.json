@@ -1,13 +1,10 @@
 {
   "builds": [
-    {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
+    { "src": "client/public/**/*", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/sw.js", "dest": "/client/public/sw.js" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/sw.js", "dest": "client/public/sw.js" },
+    { "src": "/(.*)", "dest": "client/public/$1" }
   ],
   "outputDirectory": "client/public"
 }
