@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>QuizProX — Sprawdź wiedzę o Polsce</title>
+<style>
+:root{
+  --bg1:#071025;
+  --card:#0b1220;
+  --text:#e6f7ff;
+  --muted:#9fb6d6;
+  --neon1:#00f0ff;
+  --neon2:#ff3fc4;
+  --good:#16d36a;
+  --bad:#ff5c6c;
+  --accent:#ffd27a;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,Roboto,Arial}
+body{
+  background:linear-gradient(180deg,var(--bg1),#051028 80%);
+  color:var(--text);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.page{width:100%;max-width:920px}
+.ad-top,.ad-bottom{
+  background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border:1px dashed rgba(255,255,255,0.04);
+  color:var(--muted); border-radius:12px; padding:10px; text-align:center; margin-bottom:12px;
+  font-size:0.95rem;
+}
+.card{
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:var(--radius);
+  padding:22px;
+  box-shadow:0 10px 40px rgba(0,0,0,0.6);
+  border:1px solid rgba(0,255,255,0.04);
+}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.title{font-weight:800;color:var(--neon1);letter-spacing:0.6px}
+.score{font-weight:700;color:var(--accent)}
+.question{font-size:1.4rem;text-align:center;margin:8px 0 14px;color:var(--text)}
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:700px){ .answers{grid-template-columns:1fr} .question{font-size:1.08rem} }
+
+.btn{
+  display:flex;align-items:center;justify-content:center;padding:12px;border-radius:12px;cursor:pointer;
+  user-select:none;font-weight:800;color:white;font-size:0.98rem;min-height:52px;
+  transition:transform .12s ease, box-shadow .12s ease, opacity .12s;
+  background:linear-gradient(90deg,var(--neon1),var(--neon2));
+  box-shadow:0 10px 40px rgba(0,240,255,0.04), 0 0 20px rgba(255,63,196,0.02);
+  border:1px solid rgba(255,255,255,0.02);
+}
+.btn:active{transform:translateY(2px)}
+.btn:hover{transform:translateY(-4px); box-shadow:0 18px 60px rgba(0,240,255,0.06);}
+.btn.good{ background: linear-gradient(90deg,var(--good),#8df3b0); box-shadow:0 10px 40px rgba(22,211,106,0.06);}
+.btn.bad{ background: linear-gradient(90deg,var(--bad),#ff8a94); box-shadow:0 10px 40px rgba(255,92,108,0.06);}
+
+.meta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;color:var(--muted);font-size:0.95rem}
+.ranking{margin-top:12px;color:var(--muted);max-height:200px;overflow-y:auto;padding:6px}
+.ranking ol{padding-left:18px;margin:6px 0}
+
+/* final overlay */
+#final{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(3,6,10,0.85),rgba(2,3,8,0.9));z-index:1200}
+#final-card{background:linear-gradient(180deg,#081322,#06121f);padding:20px;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.7);text-align:center;color:var(--text);max-width:580px;width:94%}
+.final-actions{display:flex;flex-direction:column;gap:10px;align-items:stretch;margin-top:10px}
+.final-actions .btn{font-size:1rem;padding:12px 14px}
+.save-btn{background:linear-gradient(90deg,#ffd27a,#ff9f43); color:#081322; font-weight:800; box-shadow:0 10px 36px rgba(255,157,66,0.06)}
+.small-muted{color:var(--muted);font-size:0.95rem;margin-top:8px}
+
+/* messages */
+.msg{
+  position:fixed; right:16px; bottom:16px; z-index:1300;
+  background:rgba(0,0,0,0.7); padding:10px 14px; border-radius:10px; color:#fff; font-size:0.95rem;
+  box-shadow:0 8px 30px rgba(0,0,0,0.6);
+  display:none;
+}
+
+/* canvas */
+canvas{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:1100}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+
+<div class="page">
+  <div class="ad-top">Miejsce na reklamę — górny baner</div>
+
+  <div class="card" id="quizCard">
+    <div class="top">
+      <div class="title">QuizProX — Sprawdź wiedzę o Polsce</div>
+      <div class="score">Punkty: <span id="points">0</span></div>
+    </div>
+
+    <div id="question" class="question">Ładowanie...</div>
+    <div id="answers" class="answers"></div>
+
+    <div class="meta">
+      <div id="progress">Pytanie 0/0</div>
+      <div class="small-muted">Miejsca reklamowe gotowe</div>
+    </div>
+
+    <div id="ranking" class="ranking" aria-hidden="true"></div>
+  </div>
+
+  <div style="height:12px"></div>
+  <div class="ad-bottom">Miejsce na reklamę — dolny baner</div>
+</div>
+
+<!-- final modal / overlay -->
+<div id="final" aria-hidden="true">
+  <div id="final-card">
+    <h1 style="margin:6px 0 8px; color:var(--neon2)">Twój wynik</h1>
+    <div id="final-text" class="small-muted">0 pkt</div>
+
+    <div class="final-actions" style="margin-top:14px;">
+      <div class="btn big" id="retryBtn" style="background:linear-gradient(90deg,#16d36a,#8df3b0)">Popraw wynik</div>
+      <div class="btn big" id="shareBtn" style="background:linear-gradient(90deg,#00f0ff,#ff3fc4)">Poleć quiz</div>
+      <div class="btn save-btn" id="saveBtn" title="Dodaj do ekranu głównego">📲 Zapisz na ekranie głównym</div>
+      <div class="btn big" id="endBtn" style="background:linear-gradient(90deg,#ff5c6c,#ff8a94)">Koniec</div>
+    </div>
+
+    <div id="final-ranking" class="ranking"></div>
+    <div class="small-muted" style="margin-top:8px">Dziękujemy za grę — wróć jutro i pobij swój wynik!</div>
+  </div>
+</div>
+
+<div class="msg" id="msgBox"></div>
+
+<!-- sounds -->
+<audio id="bg" loop src="sounds/background.mp3"></audio>
+<audio id="snd-ding" src="sounds/ding.mp3"></audio>
+<audio id="snd-buzzer" src="sounds/buzzer.mp3"></audio>
+<audio id="snd-fanfare" src="sounds/fanfare.mp3"></audio>
+
+<script>
+(() => {
+  /* ====== QUESTIONS: 150 items (polskie, mieszane, średnie) ====== */
+  const QUESTIONS = [
+    { q: "Stolica Polski?", a: ["Warszawa","Kraków","Gdańsk","Wrocław"], correct: 0 },
+    { q: "Najdłuższa rzeka w Polsce?", a: ["Wisła","Odra","Warta","Bug"], correct: 0 },
+    { q: "Najwyższy szczyt w Polsce?", a: ["Rysy","Śnieżka","Giewont","Babia Góra"], correct: 0 },
+    { q: "W którym roku Polska odzyskała niepodległość (XX wiek)?", a: ["1918","1945","1914","1939"], correct: 0 },
+    { q: "Jak brzmi herb Polski?", a: ["Orzeł biały w koronie","Lew czerwony","Pogoń","Dąb"], correct: 0 },
+    { q: "Które miasto jest siedzibą Wawelu?", a: ["Kraków","Warszawa","Poznań","Szczecin"], correct: 0 },
+    { q: "Gdzie znajduje się kopalnia soli wpisana na listę UNESCO?", a: ["Wieliczka","Kopalnia Soli Kłodawa","Bochnia","Inowrocław"], correct: 0 },
+    { q: "Kto napisał 'Pan Tadeusz'?", a: ["Adam Mickiewicz","Juliusz Słowacki","Henryk Sienkiewicz","Bolesław Prus"], correct: 0 },
+    { q: "Największe jezioro w Polsce to:", a: ["Śniardwy","Mamry","Niegocin","Hańcza"], correct: 0 },
+    { q: "Które miasto bywa nazywane 'Miastem Stu Mostów'?", a: ["Wrocław","Gdańsk","Łódź","Sopot"], correct: 0 },
+
+    { q: "Gdzie znajduje się Półwysep Helski?", a: ["Nad Bałtykiem","Nad Odrą","Nad Wisłą","Nad Wartą"], correct: 0 },
+    { q: "Jak nazywa się tradycyjne danie z kapusty i mięsa?", a: ["Bigos","Żurek","Flaki","Kapuśniak"], correct: 0 },
+    { q: "W którym roku Polska wstąpiła do Unii Europejskiej?", a: ["2004","1999","2007","2001"], correct: 0 },
+    { q: "Kto był pierwszym królem koronowanym Polski?", a: ["Bolesław I Chrobry","Mieszko I","Kazimierz Wielki","Władysław Jagiełło"], correct: 0 },
+    { q: "Gdzie odbywa się coroczny festiwal Pol'and'Rock (dawniej Woodstock)?", a: ["Kostrzyn nad Odrą","Warszawa","Gdańsk","Kraków"], correct: 0 },
+    { q: "Które miasto jest stolicą województwa pomorskiego?", a: ["Gdańsk","Gdynia","Sopot","Elbląg"], correct: 0 },
+    { q: "Który polski reżyser stworzył 'Człowieka z marmuru'?", a: ["Andrzej Wajda","Roman Polański","Krzysztof Kieślowski","Agnieszka Holland"], correct: 0 },
+    { q: "Jak nazywa się tradycyjny polski chleb żytni z zakwasem?", a: ["Chleb żytni","Bułka","Biały chleb","Kajzerka"], correct: 0 },
+    { q: "Kto napisał 'Lalkę'?", a: ["Bolesław Prus","Henryk Sienkiewicz","Maria Konopnicka","Stefan Żeromski"], correct: 0 },
+    { q: "Jaki instrument był związany z Fryderykiem Chopinem?", a: ["Fortepian","Skrzypce","Akordeon","Gitara"], correct: 0 },
+
+    { q: "Jak nazywa się największy polski port nad Bałtykiem?", a: ["Gdańsk","Szczecin","Gdynia","Kołobrzeg"], correct: 0 },
+    { q: "Który polski sportowiec zdobył złoto w skokach narciarskich na IO?", a: ["Kamil Stoch","Adam Małysz","Piotr Żyła","Dawid Kubacki"], correct: 0 },
+    { q: "Jak nazywa się tradycyjne śniadanie wielkanocne w Polsce zawierające żurek i białą kiełbasę?", a: ["Śniadanie wielkanocne","Wigilia","Śniadanie bożonarodzeniowe","Poniedziałek"], correct: 0 },
+    { q: "Które miasto jest znane z produkcji Obwarzanków i Wawelu?", a: ["Kraków","Warszawa","Poznań","Rzeszów"], correct: 0 },
+    { q: "Który z polskich pisarzy otrzymał Literacką Nagrodę Nobla?", a: ["Czesław Miłosz","Bolesław Prus","Henryk Sienkiewicz","Maria Konopnicka"], correct: 0 },
+    { q: "Jak nazywa się tradycyjny polski taniec narodowy?", a: ["Polonez","Mazur","Krakowiak","Oberek"], correct: 0 },
+    { q: "Gdzie leży Zamek Królewski w Warszawie?", a: ["Stare Miasto","Wawel","Łazienki","Nowy Świat"], correct: 0 },
+    { q: "Które województwo ma stolicę w Poznaniu?", a: ["Wielkopolskie","Małopolskie","Mazowieckie","Śląskie"], correct: 0 },
+    { q: "Jak nazywa się polska waluta?", a: ["Złoty","Euro","Dolar","Funt"], correct: 0 },
+    { q: "Który poeta jest autorem 'Dziadów' i 'Reduty Ordona'?", a: ["Adam Mickiewicz","Juliusz Słowacki","Cyprian K. Norwid","Zygmunt Krasiński"], correct: 0 },
+
+    { q: "Jak nazywa się polski park narodowy z jaskiniami i ostańcami skalnymi (Jura Krakowsko-Częstochowska)?", a: ["Ojcowski Park Narodowy","Tatrzański Park Narodowy","Biebrzański Park Narodowy","Kampinoski Park Narodowy"], correct: 0 },
+    { q: "Gdzie odbywa się coroczny Festiwal Filmowy w Gdyni?", a: ["Gdynia","Kraków","Warszawa","Łódź"], correct: 0 },
+    { q: "Który kompozytor jest autorem 'Halki'?", a: ["Stanisław Moniuszko","Fryderyk Chopin","Karol Szymanowski","Henryk Wieniawski"], correct: 0 },
+    { q: "Które miasto jest znane z koziołków na ratuszu?", a: ["Poznań","Kraków","Wrocław","Gdańsk"], correct: 0 },
+    { q: "W którym roku wybuchło Powstanie Warszawskie?", a: ["1944","1830","1863","1918"], correct: 0 },
+    { q: "Jakie miasto jest stolicą województwa śląskiego?", a: ["Katowice","Gliwice","Bytom","Częstochowa"], correct: 0 },
+    { q: "Które zwierzę jest symbolem Puszczy Białowieskiej?", a: ["Żubr","Wilk","Łoś","Ryś"], correct: 0 },
+    { q: "Jak nazywa się najwyższe pasmo górskie w Polsce?", a: ["Tatry","Karkonosze","Bieszczady","Sudety"], correct: 0 },
+    { q: "Kto był pierwszym prezydentem III RP (wybranym po 1989)?", a: ["Lech Wałęsa","Wojciech Jaruzelski","Aleksander Kwaśniewski","Ignacy Mościcki"], correct: 0 },
+    { q: "Jakie miasto słynie z krakowskich obwarzanków i Wawelu?", a: ["Kraków","Warszawa","Poznań","Lublin"], correct: 0 },
+
+    { q: "Które jezioro leży na Pojezierzu Mazurskim i jest największe?", a: ["Śniardwy","Niegocin","Mamry","Hańcza"], correct: 0 },
+    { q: "Który malarz namalował 'Bitwę pod Grunwaldem'?", a: ["Jan Matejko","Jacek Malczewski","Józef Chełmoński","Stanisław Wyspiański"], correct: 0 },
+    { q: "Jak nazywa się polska opera narodowa w Warszawie?", a: ["Teatr Wielki – Opera Narodowa","Opera Krakowska","Opera Śląska","Opera Nova"], correct: 0 },
+    { q: "Jakie tradycyjne potrawy znajdują się na wielkanocnym stole w Polsce?", a: ["Żurek i biała kiełbasa","Bigos i pierogi","Rosół i kotlet","Zupa pomidorowa i kopytka"], correct: 0 },
+    { q: "W którym mieście znajduje się Zamek Królewski na Wawelu?", a: ["Kraków","Warszawa","Gdańsk","Poznań"], correct: 0 },
+    { q: "Jak nazywa się polski taniec narodowy, tradycyjny taniec par?", a: ["Polonez","Oberek","Kujawiak","Mazur"], correct: 0 },
+    { q: "Który polski poeta wygrał Nagrodę Nobla w literaturze?", a: ["Czesław Miłosz","Adam Mickiewicz","Bolesław Leśmian","Juliusz Słowacki"], correct: 0 },
+    { q: "Jak nazywa się największe lotnisko w Polsce (międzynarodowe)?", a: ["Warszawa Chopin","Kraków Balice","Gdańsk Rębiechowo","Katowice Pyrzowice"], correct: 0 },
+    { q: "Który polski narciarz zdobył popularność na początku XXI wieku (skoczek)?", a: ["Adam Małysz","Kamil Stoch","Piotr Żyła","Dawid Kubacki"], correct: 0 },
+    { q: "Jak nazywa się tradycyjne polskie święto obchodzone 3 maja?", a: ["Święto Konstytucji 3 Maja","Boże Ciało","Święto Niepodległości","Święto Pracy"], correct: 0 },
+
+    { q: "Które miasto jest znane z Manufaktury i przemysłu włókienniczego (duże centrum handlowe i kulturalne)?", a: ["Łódź","Wrocław","Poznań","Szczecin"], correct: 0 },
+    { q: "Gdzie stoi Pomnik Bohaterów Warszawy (Warszawa — Syrena)?", a: ["Warszawa — Syrena/Stare Miasto","Kraków — Wawel","Gdańsk — Długi Targ","Poznań — Stary Rynek"], correct: 0 },
+    { q: "Który polski astronom żył przed wiekami i zmienił poglądy o wszechświecie?", a: ["Mikołaj Kopernik","Jan Heweliusz","Karol Olszewski","Nicolaus Copernicus"], correct: 0 },
+    { q: "Jak nazywa się słynny polski fizyk i chemik (dwukrotny noblista)?", a: ["Maria Skłodowska-Curie","Ignacy Łukasiewicz","Mikołaj Kopernik","Jan Czochralski"], correct: 0 },
+    { q: "Które miasto nad Bałtykiem ma charakterystyczną stocznię i Motławę?", a: ["Gdańsk","Sopot","Gdynia","Kołobrzeg"], correct: 0 },
+    { q: "Co to jest 'Białowieża' słynie z:", a: ["Puszczy i żubrów","Gór i jezior","Pustyni i stepów","Wybrzeża"], correct: 0 },
+    { q: "W którym regionie Polski leżą Mazury?", a: ["Warmia i Mazury","Podkarpacie","Pomorze","Śląsk"], correct: 0 },
+    { q: "Jak nazywa się polski miesięcznik literacki lub czasopismo (klasyk)?", a: ["Przekrój","Polityka","Wprost","Newsweek Polska"], correct: 0 },
+    { q: "Jakiego koloru jest flaga Polski?", a: ["Biało-czerwona","Czerwono-biała","Biało-niebieska","Zielono-biała"], correct: 0 },
+    { q: "Które miasto jest stolicą województwa łódzkiego?", a: ["Łódź","Piotrków Trybunalski","Sieradz","Tomaszów Mazowiecki"], correct: 0 },
+
+    { q: "Które miasto jest znane z rynku z ratuszem i koziołkami (Poznań)?", a: ["Poznań","Kraków","Warszawa","Gdańsk"], correct: 0 },
+    { q: "Jak nazywa się znany polski poeta i autor 'Sonetów krymskich'?", a: ["Adam Mickiewicz","Juliusz Słowacki","Cyprian Norwid","Maria Konopnicka"], correct: 0 },
+    { q: "Które miasto jest siedzibą Uniwersytetu Jagiellońskiego?", a: ["Kraków","Warszawa","Poznań","Lublin"], correct: 0 },
+    { q: "Co to jest 'Bieszczady'?", a: ["Pasmo górskie w Polsce","Miasto nad morzem","Rzeka","Park narodowy tylko na Litwie"], correct: 0 },
+    { q: "Który polski kompozytor był związany z muzyką fortepianową i Romantyzmem?", a: ["Fryderyk Chopin","Stanisław Moniuszko","Karol Szymanowski","Witold Lutosławski"], correct: 0 },
+    { q: "Jak nazywa się najważniejszy polski dokument konstytucyjny z 1791 roku?", a: ["Konstytucja 3 maja (1791)","Konstytucja RP (1997)","Ustawa zasadnicza 1800","Ustawa 1918"], correct: 0 },
+    { q: "Jak nazywa się tradycyjny polski placek ziemniaczany?", a: ["Placki ziemniaczane","Naleśniki","Kopytka","Pierogi"], correct: 0 },
+    { q: "Który polski sport popularny jest zimą (skoki narciarskie)?", a: ["Skoki narciarskie","Kolarstwo","Piłka ręczna","Piłka nożna"], correct: 0 },
+    { q: "Jak nazywa się największy polski park narodowy w Tatrach?", a: ["Tatrzański Park Narodowy","Babiogórski Park Narodowy","Bieszczadzki Park Narodowy","Pieniński Park Narodowy"], correct: 0 },
+    { q: "Gdzie znajduje się popularne schronisko 'Morskie Oko'?", a: ["Tatry","Bieszczady","Góry Stołowe","Sudety"], correct: 0 },
+
+    { q: "Które polskie miasto jest znane z festiwalu filmowego Camerimage (kinematografia)?", a: ["Toruń","Kraków","Warszawa","Gdynia"], correct: 0 },
+    { q: "Które miasto ma słynne 'Złote Tarasy' i Pałac Kultury?", a: ["Warszawa","Kraków","Poznań","Wrocław"], correct: 0 },
+    { q: "Jakie miasto jest stolicą województwa małopolskiego?", a: ["Kraków","Nowy Sącz","Tarnów","Zakopane"], correct: 0 },
+    { q: "Co to jest 'pączek' w polskiej kuchni?", a: ["Słodkie ciastko smażone z nadzieniem","Chleb żytni","Kiełbasa","Zupa"], correct: 0 },
+    { q: "Który polski noblista jest poetą i autorem m.in. 'Traktatu poetyckiego'?", a: ["Czesław Miłosz","Wisława Szymborska","Sławomir Mrożek","Olga Tokarczuk"], correct: 0 },
+    { q: "Które miasto jest znane z zabytkowego rynku i Sukiennic?", a: ["Kraków","Warszawa","Wrocław","Poznań"], correct: 0 },
+    { q: "Jak nazywa się najpopularniejsza polska potrawa z mięsem i kapustą?", a: ["Bigos","Żurek","Rosół","Kotlet schabowy"], correct: 0 },
+    { q: "Które miasto leży nad Motławą i ma Długi Targ?", a: ["Gdańsk","Sopot","Gdynia","Kołobrzeg"], correct: 0 },
+    { q: "Jak nazywa się polska waluta (skrót)?", a: ["PLN","EUR","USD","GBP"], correct: 0 },
+    { q: "Jakie morze oblewa polskie wybrzeże?", a: ["Morze Bałtyckie","Morze Północne","Morze Śródziemne","Morze Czarne"], correct: 0 },
+
+    { q: "Która bitwa (1410) była jednym z największych starć średniowiecznej Europy w polskiej historii?", a: ["Bitwa pod Grunwaldem","Bitwa pod Wiedniem","Bitwa pod Racławicami","Bitwa pod Lipanami"], correct: 0 },
+    { q: "Jakie miasto jest siedzibą Politechniki Wrocławskiej i Rynku we Wrocławiu?", a: ["Wrocław","Poznań","Kraków","Gdańsk"], correct: 0 },
+    { q: "Który polski podróżnik był znanym odkrywcą i synem szlacheckim (wieki dawniej)?", a: ["Krzysztof Kolumb był Hiszpanem — poprawne polskie postaci to np. Paweł Edmund Strzelecki (badacz)", "Mikołaj Kopernik","Jan Heweliusz","Paweł Edmund Strzelecki"], correct: 3 },
+    { q: "Jak nazywa się największy polski uniwersytet (pod względem nazwy i tradycji)?", a: ["Uniwersytet Jagielloński","Uniwersytet Warszawski","Uniwersytet Adama Mickiewicza","Politechnika Warszawska"], correct: 0 },
+    { q: "Która wyspa polska ma latarnię morską i byłe twierdze (na Bałtyku)?", a: ["Uznam (częściowo polski)","Hel","Wolin","Bornholm"], correct: 2 },
+    { q: "Jak nazywa się słynna polska piosenkarka, autorka wielu przebojów (np. 'Nie płacz Ewka')?", a: ["Edyta Górniak","Kora","Maryla Rodowicz","Anna Jantar"], correct: 2 },
+    { q: "Gdzie znajduje się Puszcza Białowieska?", a: ["Na granicy Polski i Białorusi","Na granicy Polski i Litwy","W centralnej Polsce","Na Półwyspie Helskim"], correct: 0 },
+    { q: "Jak nazywa się tradycyjny polski pieróg z mięsem?", a: ["Pierogi","Racuchy","Kluski","Naleśniki"], correct: 0 },
+    { q: "Które miasto jest znane z Zamku Książ i pobliskich atrakcji turystycznych?", a: ["Wałbrzych","Kraków","Wrocław","Szczecin"], correct: 0 },
+    { q: "Jak nazywa się znane polskie jezioro górskie (w Tatrach)?", a: ["Morskie Oko","Śniardwy","Hańcza","Niegocin"], correct: 0 },
+
+    { q: "Które województwo ma stolicę w Lublinie?", a: ["Lubelskie","Podkarpackie","Lubuskie","Łódzkie"], correct: 0 },
+    { q: "Jak nazywa się polski noblista literacki z 2018 roku?", a: ["Olga Tokarczuk","Wisława Szymborska","Czesław Miłosz","Henryk Sienkiewicz"], correct: 0 },
+    { q: "Jak nazywa się największe miasto na Warmii i Mazurach?", a: ["Olsztyn","Ełk","Giżycko","Mrągowo"], correct: 0 },
+    { q: "Jak nazywa się polski reżyser światowej sławy związany z filmami takimi jak 'Rosemary's Baby'?", a: ["Roman Polański","Andrzej Wajda","Krzysztof Kieślowski","Agnieszka Holland"], correct: 0 },
+    { q: "Jakie miasto jest znane z Ostrów Tumski i katedry?", a: ["Poznań","Wrocław","Kraków","Gdańsk"], correct: 0 },
+    { q: "Które polskie miasto jest portem i centrum przemysłu stoczniowego?", a: ["Gdańsk","Sopot","Gdynia","Kołobrzeg"], correct: 0 },
+    { q: "Jak nazywa się polska potrawa, która bywa nadziewana mięsem lub serem i gotowana?", a: ["Pierogi","Kluski śląskie","Kopytka","Placki"], correct: 0 },
+    { q: "Kto był autorem 'Quo Vadis' — słynnej powieści historycznej?", a: ["Henryk Sienkiewicz","Bolesław Prus","Eliza Orzeszkowa","Stefan Żeromski"], correct: 0 },
+    { q: "Jak nazywa się polskie święto obchodzone 11 listopada?", a: ["Dzień Niepodległości","Święto Pracy","Boże Ciało","Wniebowzięcie"], correct: 0 },
+    { q: "Który polski kompozytor napisał wiele mazurków i nokturnów?", a: ["Fryderyk Chopin","Karol Szymanowski","Stanisław Moniuszko","Witold Lutosławski"], correct: 0 },
+
+    { q: "Jakie miasto jest stolicą województwa podkarpackiego?", a: ["Rzeszów","Przemyśl","Krosno","Sanok"], correct: 0 },
+    { q: "Który polski sportowiec jest legendą w skokach narciarskich (wczesne lata 2000)?", a: ["Adam Małysz","Kamil Stoch","Tomasz Sikora","Piotr Żyła"], correct: 0 },
+    { q: "Jak nazywa się polska wyspa popularna turystycznie (na Bałtyku) z wydmami i plażami)?", a: ["Władysławowo","Hel","Uznam","Kashubia"], correct: 2 },
+    { q: "Jak nazywa się zabytek w Poznaniu związany z koziołkami?", a: ["Ratusz", "Katedra", "Zamek", "Brama"], correct: 0 },
+    { q: "Jakie miasto jest stolicą województwa podlaskiego?", a: ["Białystok","Suwałki","Łomża","Augustów"], correct: 0 },
+    { q: "Który władca z dynastii Jagiellonów był znany z unii z Litwą i bitwy pod Grunwaldem (wspólnie)?", a: ["Władysław Jagiełło","Kazimierz Wielki","Bolesław Chrobry","Zygmunt Stary"], correct: 0 },
+    { q: "Jak nazywa się najdłuższe jezioro w Polsce (nazwy masywów wodnych)?", a: ["Śniardwy","Mamry","Hańcza","Niegocin"], correct: 0 },
+    { q: "Które miasto jest znane z Zamku Królewskiego i Łazienek Królewskich?", a: ["Warszawa","Kraków","Gdańsk","Wrocław"], correct: 0 },
+    { q: "Jak nazywa się tradycyjny instrument ludowy z Polski (np. dudy)?", a: ["Dudy","Skrzypce","Flet","Trąbka"], correct: 0 },
+    { q: "Które miasto jest znane z Wrocławskiego Rynku i krasnali?", a: ["Wrocław","Poznań","Kraków","Gdańsk"], correct: 0 },
+
+    { q: "Gdzie znajduje się słynny most Piłsudskiego i Stare Miasto w Gdańsku?", a: ["Długi Targ i Motława","Wawel","Rynek Główny","Stary Rynek Poznań"], correct: 0 },
+    { q: "Który polski noblista jest autorem wierszy i esei (ur. 1924)?", a: ["Czesław Miłosz","Wisława Szymborska","Zbigniew Herbert","Tadeusz Różewicz"], correct: 0 },
+    { q: "Jakie jest największe miasto na Śląsku?", a: ["Katowice","Gliwice","Bytom","Rybnik"], correct: 0 },
+    { q: "Jak nazywa się polski skoczek narciarski, który wygrał Turniej Czterech Skoczni?", a: ["Kamil Stoch","Adam Małysz","Piotr Żyła","Dawid Kubacki"], correct: 0 },
+    { q: "Gdzie znajduje się słynna kopalnia soli Bochnia lub Wieliczka (UNESCO)?", a: ["Wieliczka","Bochnia","Kłodawa","Inowrocław"], correct: 0 },
+    { q: "Która polska wyspa słynie z latarni morskiej (np. Rozewie)?", a: ["Półwysep Helski/Rozewie region","Wolin","Hel","Uznam"], correct: 0 },
+    { q: "Jak nazywa się tradycyjna polska zupa z żuru?", a: ["Żurek","Barszcz czerwony","Rosół","Flaki"], correct: 0 },
+    { q: "Który polski malarz jest autorem portretów i monumentalnych obrazów historycznych (np. Matejko)?", a: ["Jan Matejko","Jacek Malczewski","Józef Chełmoński","Stanisław Wyspiański"], correct: 0 },
+    { q: "Jak nazywa się polskie święto obchodzone 1 maja?", a: ["Święto Pracy","Dzień Niepodległości","Boże Ciało","Wigilia"], correct: 0 },
+    { q: "Które miasto leży najbliżej polsko-czeskiej granicy i słynie z zabytków (np. Kłodzko)?", a: ["Kłodzko","Wrocław","Opole","Katowice"], correct: 0 },
+
+    { q: "Który polski filozof i myśliciel napisał ważne prace (XIX w.)? (np. Ernst Tugendhat — niepolski) — pytanie ogólne o kulturę", a: ["Józef Tischner","Leszek Kołakowski","Roman Ingarden","Tadeusz Kotarbiński"], correct: 1 },
+    { q: "Jak nazywa się najważniejsza polska nagroda filmowa przyznawana w Gdyni?", a: ["Festiwal Polskich Filmów Fabularnych (Gdynia)","Camerimage","Off Camera","Transatlantyk"], correct: 0 },
+    { q: "Jaką polską potrawę często podaje się z kapustą i mięsem (danie tradycyjne)?", a: ["Bigos","Pierogi","Żurek","Rosół"], correct: 0 },
+    { q: "Gdzie znajduje się Kanał Elbląski (znany z pochylni)?", a: ["Warmia i Mazury / Elbląg region","Pomorze","Mazowsze","Małopolska"], correct: 0 },
+    { q: "Jak nazywa się polski kompozytor XX wieku znany z muzyki poważnej?", a: ["Witold Lutosławski","Henryk Wieniawski","Karol Szymanowski","Grażyna Bacewicz"], correct: 0 },
+    { q: "Który polski malarz tworzył w okresie modernizmu (np. Wyspiański)?", a: ["Stanisław Wyspiański","Jan Matejko","Jacek Malczewski","Artur Grottger"], correct: 0 },
+    { q: "Jak nazywa się słynny polski poeta XX wieku, autorka krótkich form (wierszy) i noblistka?", a: ["Wisława Szymborska","Olga Tokarczuk","Czesław Miłosz","Zbigniew Herbert"], correct: 0 },
+    { q: "Jakie miasto jest znane z zabytkowego zamku Malbork?", a: ["Malbork","Gdańsk","Elbląg","Słupsk"], correct: 0 },
+    { q: "Który polski astronom miał wpływ na naukę (Kopernik)?", a: ["Mikołaj Kopernik","Jan Heweliusz","Nicolaus Copernicus","Obie poprawne"], correct: 3 },
+    { q: "Jak nazywa się tradycyjna polska potrawa z ziemniaków i mięsa (popularna)?", a: ["Placki ziemniaczane","Kluski śląskie","Kopytka","Pierogi"], correct: 0 },
+
+    { q: "Jak nazywa się największa wyspa w Polsce (Wolin/Uznam region)?", a: ["Uznam/Wolin region — ﻿Wolin (duże wyspy)", "Bornholm nie jest polski","Hel jest półwyspem","Sępopol"], correct: 0 },
+    { q: "Który polski władca był znany z budowy wielu zamków i fortyfikacji (np. Kazimierz Wielki)?", a: ["Kazimierz Wielki","Bolesław Chrobry","Mieszko I","Władysław Jagiełło"], correct: 0 },
+    { q: "Gdzie leżą Bieszczady?", a: ["Na południowym wschodzie Polski","Na północy Polski","Na zachodzie Polski","Na centralnej nizinie"], correct: 0 },
+    { q: "Jakie miasto jest stolicą województwa świętokrzyskiego?", a: ["Kielce","Sandomierz","Ostrowiec Świętokrzyski","Starachowice"], correct: 0 },
+    { q: "Jak nazywa się najważniejszy polski dokument konstytucyjny uchwalony w 1997 roku?", a: ["Konstytucja Rzeczypospolitej Polskiej (1997)","Konstytucja 3 maja (1791)","Ustawa zasadnicza 1800","Dekret 1918"], correct: 0 },
+    { q: "Które miasto jest znane z kopalni soli w Wieliczce?", a: ["Wieliczka","Bochnia","Kłodawa","Inowrocław"], correct: 0 },
+    { q: "Jak nazywa się polska tradycyjna piosenka ludowa?", a: ["Hejże, hej! (przykład)","Sto lat","Mazurka Dąbrowskiego","Hymn"], correct: 0 },
+    { q: "Które miasto jest stolicą województwa zachodniopomorskiego?", a: ["Szczecin","Koszalin","Świnoujście","Police"], correct: 0 },
+    { q: "Jak nazywa się górska miejscowość znana z Zakopanego jako centrum Tatr?", a: ["Zakopane","Karpacz","Szklarska Poręba","Szczyrk"], correct: 0 },
+    { q: "Który polski astronom miał obserwatorium w Gdańsku (Jan Heweliusz)?", a: ["Jan Heweliusz","Mikołaj Kopernik","Nicolaus Copernicus","Obie poprawne"], correct: 0 },
+
+    { q: "Jak nazywa się polski kompozytor XX wieku związany z modernizmem (Szymanowski)?", a: ["Karol Szymanowski","Fryderyk Chopin","Stanisław Moniuszko","Witold Lutosławski"], correct: 0 },
+    { q: "Która z poniższych potraw jest tradycyjnym polskim daniem świątecznym (Boże Narodzenie)?", a: ["Wigilia — barszcz z uszkami","Bigos z mięsem","Żurek","Kotlet schabowy"], correct: 0 },
+    { q: "Jakie miasto jest gospodarzem corocznego festiwalu szantowego 'Shanties' (przykład)?", a: ["Gdynia","Gdańsk","Sopot","Szczecin"], correct: 0 },
+    { q: "Jak nazywa się najważniejsza polska uczelnia medyczna (np. Akademia Medyczna w Warszawie)?", a: ["Uniwersytet Medyczny w Warszawie","Uniwersytet Medyczny w Łodzi","AM Kraków","AM Poznań"], correct: 0 },
+    { q: "Które miasto jest znane z Bramy Floriańskiej i Sukiennic?", a: ["Kraków","Warszawa","Gdańsk","Wrocław"], correct: 0 },
+    { q: "Jak nazywa się słynna polska piosenkarka z piosenkami lat 80. i 90. (np. Edyta Górniak)?", a: ["Edyta Górniak","Maryla Rodowicz","Kora","Anna Jantar"], correct: 0 },
+    { q: "Które miasto jest stolicą województwa lubuskiego?", a: ["Zielona Góra","Gorzów Wielkopolski","Słubice","Międzyrzecz"], correct: 0 },
+    { q: "Jak nazywa się największy polski zamek ceglany (Malbork)?", a: ["Zamek w Malborku","Zamek Książ","Zamek w Wawelu","Zamek w Gniewie"], correct: 0 },
+    { q: "Jakie morze oblewa polskie wybrzeże?", a: ["Morze Bałtyckie","Morze Czarne","Morze Śródziemne","Morze Północne"], correct: 0 },
+    { q: "Który polski władca stał się znany jako 'Chrobry'?", a: ["Bolesław I Chrobry","Mieszko I","Kazimierz Wielki","Władysław Jagiełło"], correct: 0 }
+  ];
+
+  /* ====== DOM & STATE ====== */
+  const $ = id => document.getElementById(id);
+  const questionEl = $('question'), answersEl = $('answers'), pointsEl = $('points'),
+        progressEl = $('progress'), rankingEl = $('ranking'), finalRankingEl = $('final-ranking'),
+        finalOverlay = $('final'), finalText = $('final-text'),
+        retryBtn = $('retryBtn'), shareBtn = $('shareBtn'), saveBtn = $('saveBtn'), endBtn = $('endBtn'),
+        bg = $('bg'), sndDing = $('snd-ding'), sndBuzzer = $('snd-buzzer'), sndFanfare = $('snd-fanfare'),
+        msgBox = $('msgBox'), canvas = $('fx'), ctx = canvas.getContext('2d');
+
+  function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resize); resize();
+
+  let pool = [], order = [], cur = 0, points = 0;
+  let musicStarted = false; let fanfarePlayed = false;
+  const STORAGE_KEY = 'quizprox_150_scores_v1';
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+
+  function shuffle(arr){ return arr.slice().sort(()=>Math.random()-0.5); }
+  function showMsg(text, timeout=2200){ msgBox.textContent = text; msgBox.style.display = 'block'; setTimeout(()=>{ msgBox.style.display = 'none'; }, timeout); }
+  function startMusic(){ if(!musicStarted){ musicStarted = true; bg.volume = 0.55; bg.play().catch(()=>{}); } }
+
+  /* ====== Flow ====== */
+  function startRound(){
+    pool = shuffle(QUESTIONS.map((_,i)=>i));
+    order = pool.slice(0, Math.min(10, pool.length));
+    cur = 0; points = 0; pointsEl.textContent = points; fanfarePlayed = false;
+    progressEl.textContent = `Pytanie ${cur+1}/${order.length}`; rankingEl.setAttribute('aria-hidden','true');
+    renderQuestion();
+  }
+
+  function renderQuestion(){
+    const idx = order[cur]; const q = QUESTIONS[idx];
+    progressEl.textContent = `Pytanie ${cur+1}/${order.length}`;
+    questionEl.textContent = q.q; answersEl.innerHTML = '';
+    const mapped = q.a.map((t,i)=>({t,i})); const shuffled = shuffle(mapped);
+    shuffled.forEach(item=>{
+      const btn = document.createElement('div'); btn.className = 'btn'; btn.textContent = item.t;
+      btn.onclick = () => { startMusic(); handleAnswer(btn, item.i); }; answersEl.appendChild(btn);
+    });
+  }
+
+  function handleAnswer(button, chosenIndex){
+    Array.from(answersEl.children).forEach(b=>b.onclick=null);
+    const idx = order[cur]; const q = QUESTIONS[idx];
+    Array.from(answersEl.children).forEach(ch=>{
+      if(ch.textContent === q.a[q.correct]){ ch.classList.add('good'); ch.style.background = 'linear-gradient(90deg,#16d36a,#8df3b0)'; }
+    });
+    if(chosenIndex === q.correct){
+      points += 10; pointsEl.textContent = points; try{ sndDing.currentTime=0; sndDing.play(); }catch(e){} spawnConfettiAt(button,14);
+    } else {
+      button.classList.add('bad'); button.style.background='linear-gradient(90deg,#ff5c6c,#ff8a94)'; try{ sndBuzzer.currentTime=0; sndBuzzer.play(); }catch(e){}
+    }
+    setTimeout(()=>{ cur++; if(cur<order.length) renderQuestion(); else finishRound(); }, 750);
+  }
+
+  function saveScore(s){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY); const arr = raw ? JSON.parse(raw) : [];
+      arr.push({score:s, date:Date.now()}); arr.sort((a,b)=>b.score-a.score); localStorage.setItem(STORAGE_KEY, JSON.stringify(arr.slice(0,50)));
+    }catch(e){}
+  }
+
+  function showFinalRanking(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY); const arr = raw ? JSON.parse(raw) : [];
+      if(!arr.length){ finalRankingEl.innerHTML = '<div class="small-muted">Brak wyników — zagraj teraz!</div>'; return; }
+      finalRankingEl.innerHTML = '<h4>Ranking lokalny</h4><div style="max-height:180px;overflow-y:auto;"><ol>'+arr.slice(0,50).map(x=>`<li style="margin:6px 0; padding:6px; border-radius:8px; background:rgba(0,255,230,0.03)"><strong>${x.score}</strong> pkt</li>`).join('')+'</ol></div>';
+    }catch(e){ finalRankingEl.innerHTML=''; }
+  }
+
+  function finishRound(){
+    saveScore(points);
+    if(!fanfarePlayed){ fanfarePlayed = true; try{ sndFanfare.currentTime=0; sndFanfare.play(); }catch(e){} }
+    triggerFinalFireworks();
+    setTimeout(()=>{
+      finalText.textContent = `${points} pkt`;
+      document.getElementById('quizCard').style.display = 'none';
+      finalOverlay.style.display = 'flex';
+      fadeOutMusic();
+      showFinalRanking();
+    }, 850);
+  }
+
+  retryBtn.addEventListener('click', ()=>{
+    finalOverlay.style.display = 'none'; document.getElementById('quizCard').style.display = 'block';
+    fanfarePlayed = false; startRound();
+  });
+
+  shareBtn.addEventListener('click', ()=>{
+    if(navigator.share){ navigator.share({ title:'QuizProX — Sprawdź wiedzę!', text:'Zagraj w QuizProX — sprawdź swoją wiedzę o Polsce!', url: location.href }).catch(()=>{}); }
+    else { copyToClipboard(location.href); showMsg('Link skopiowany — wyślij znajomym!'); }
+  });
+
+  endBtn.addEventListener('click', ()=>{ stopAndShowEnd(); });
+
+  function stopAndShowEnd(){
+    try{ bg.pause(); }catch(e){} try{ sndDing.pause(); sndBuzzer.pause(); sndFanfare.pause(); }catch(e){}
+    document.getElementById('quizCard').style.display = 'none'; finalOverlay.style.display = 'flex';
+    finalText.textContent = 'Dziękujemy za grę! Do zobaczenia jutro 👋'; finalRankingEl.innerHTML = '';
+    retryBtn.style.display = 'none'; shareBtn.style.display = 'none'; saveBtn.style.display = 'none'; endBtn.style.display = 'none';
+  }
+
+  /* Save to home screen */
+  saveBtn.addEventListener('click', async ()=>{
+    if(deferredPrompt){ deferredPrompt.prompt(); const choice = await deferredPrompt.userChoice.catch(()=>null); deferredPrompt = null;
+      if(choice && choice.outcome === 'accepted') showMsg('Dodano do ekranu głównego!'); else showMsg('Akcja anulowana.'); return;
+    }
+    copyToClipboard(location.href); showMsg('Link skopiowany. Na telefonie: Udostępnij → Dodaj do ekranu głównego.');
+    setTimeout(()=>{ alert('Aby dodać do ekranu głównego:\n\n• Android (Chrome): menu (⋮) → Dodaj do ekranu głównego\n• iPhone (Safari): Udostępnij → Dodaj do ekranu głównego'); }, 350);
+  });
+
+  function copyToClipboard(text){ if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(text).catch(()=>{ fallbackCopy(text); }); } else fallbackCopy(text); }
+  function fallbackCopy(text){ const ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} document.body.removeChild(ta); }
+
+  function fadeOutMusic(){ if(!bg) return; let vol = bg.volume || 0.55; const iv = setInterval(()=>{ vol -= 0.06; if(vol <= 0.05){ try{ bg.pause(); }catch(e){} bg.volume = 0.55; clearInterval(iv); } else bg.volume = Math.max(0, vol); }, 120); }
+
+  /* Confetti (lightweight) */
+  const particles = []; let running = false;
+  function spawnConfettiAt(el, count=14){
+    const r = el.getBoundingClientRect(); const x = r.left + r.width/2; const y = r.top + r.height/2;
+    spawn(x,y, Math.max(8, Math.min(18, count)), { spread: Math.PI*1.4, speed:3.0, gravity:0.12, life:60 });
+  }
+  function spawn(x,y,amount,opts={}){ const cols = ['#00f0ff','#ff3fc4','#ffd75e','#5bff93','#b58bff','#ff9f43']; const spread = opts.spread || Math.PI*2; const speed = opts.speed || 3; const gravity = opts.gravity || 0.08; const life = opts.life || 80; for(let i=0;i<amount;i++){ const angle = (Math.random()-0.5)*spread; const spd = (0.8 + Math.random()*0.9) * speed; particles.push({ x: x + (Math.random()-0.5)*6, y: y + (Math.random()-0.5)*6, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd - 2.2, age: 0, life: life*(0.6 + Math.random()*0.6), col: cols[Math.floor(Math.random()*cols.length)], size: 1.4 + Math.random()*2.2, gravity, friction: 0.995 }); } if(!running) runLoop(); }
+  function runLoop(){ running = true; function step(){ ctx.clearRect(0,0,canvas.width,canvas.height); for(let i=particles.length-1;i>=0;i--){ const p = particles[i]; p.age++; p.vy += p.gravity; p.vx *= p.friction; p.vy *= p.friction; p.x += p.vx; p.y += p.vy; const lr = 1 - p.age / p.life; if(lr <= 0 || p.y > canvas.height + 30){ particles.splice(i,1); continue; } ctx.save(); ctx.globalAlpha = Math.max(0.02, lr*0.95); ctx.fillStyle = p.col; ctx.filter = 'blur(1px)'; ctx.beginPath(); ctx.arc(p.x, p.y, p.size*1.3, 0, Math.PI*2); ctx.fill(); ctx.restore(); ctx.beginPath(); ctx.globalAlpha = Math.min(1, lr + 0.1); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); } if(particles.length > 0) requestAnimationFrame(step); else running = false; } requestAnimationFrame(step); }
+
+  function triggerFinalFireworks(){ const W = canvas.width, H = canvas.height; for(let i=0;i<4;i++){ const cx = Math.random()*(W*0.8)+W*0.1; const cy = Math.random()*(H*0.35)+40; spawn(cx, cy, 40, { spread: Math.PI*2, speed:4.0, gravity:0.04, life:110 }); } }
+
+  /* init */
+  function init(){ resize(); startRound(); function startOnFirstClick(){ startMusic(); document.removeEventListener('click', startOnFirstClick); } document.addEventListener('click', startOnFirstClick); }
+  window.addEventListener('load', init);
+
+  // expose for debug
+  window.QuizProX = { startRound };
+
+})();
+</script>
+</body>
+</html>
