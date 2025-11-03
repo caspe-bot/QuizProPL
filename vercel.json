@@ -1,4 +1,5 @@
 {
+  "version": 3,
   "rewrites": [
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/(.*)", "destination": "/client/dist/public/$1" }
